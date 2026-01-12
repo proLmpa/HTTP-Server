@@ -2,32 +2,27 @@ package httpserver.util
 
 import httpserver.http.HttpMethod
 import httpserver.http.HttpRequest
-import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import java.io.InputStreamReader
 
 object RequestParser {
 
+    private const val MAX_HEADER_SIZE = 8 * 1024
+    private const val MAX_BODY_SIZE = 1 * 1024 * 1024
+
     fun parse(input: InputStream): HttpRequest {
-        // 1. 요청 읽기 후 파싱
-        val reader = BufferedReader(InputStreamReader(input, Charsets.UTF_8))
+        val raw = readUntilDoubleCRLF(input)
+        val lines = raw.split("\r\n")
 
-        val requestLine = reader.readLine() ?: throw IllegalArgumentException("Empty Request")
+        val (method, path, version) = parseRequestLine(lines.first())
 
-        val (method, path, version) = parseRequestLine(requestLine)
-
-        // 2. Headers 읽기
         val headers = mutableMapOf<String, String>()
-        while(true) {
-            val line = reader.readLine() ?: break
-            if (line.isEmpty()) break
-
-            val (key, value) = parseHeader(line)
-            headers[key.lowercase()] = value
+        for (i in 1 until lines.size) {
+            if (lines[i].isEmpty()) break
+            val (k, v) = parseHeader(lines[i])
+            headers[k.lowercase()] = v
         }
 
-
-        // 3. Body 처리
         val body = parseBody(headers, input)
 
         return HttpRequest(
@@ -37,6 +32,31 @@ object RequestParser {
             headers = headers,
             body = body
         )
+    }
+
+    private fun readUntilDoubleCRLF(input: InputStream): String {
+        val buffer = ByteArrayOutputStream()
+        var prev = 0
+        var curr: Int
+
+        while (true) {
+            curr = input.read()
+            if (curr == -1) break
+            buffer.write(curr)
+
+            if (prev == '\r'.code && curr == '\n'.code) {
+                val bytes = buffer.toByteArray()
+                if (bytes.takeLast(4).toByteArray()
+                        .contentEquals("\r\n\r\n".toByteArray())
+                ) break
+            }
+            prev = curr
+
+            if (buffer.size() > MAX_HEADER_SIZE)
+                throw IllegalArgumentException("Header too large")
+        }
+
+        return buffer.toString(Charsets.UTF_8)
     }
 
     private fun parseRequestLine(line: String): Triple<String, String, String> {
@@ -61,16 +81,10 @@ object RequestParser {
     }
 
     private fun parseBody(headers: Map<String, String>, input: InputStream) : ByteArray? {
-        val length = headers["content-length"]?.toIntOrNull() ?: return null
+        val length = headers["Content-Length"]?.toIntOrNull() ?: return null
 
-        val body = ByteArray(length)
-        var read = 0
-        while (read < length) {
-            val r = input.read(body, read, length-read)
-            if (r == -1) break
-            read += r
-        }
+        require(length <= MAX_BODY_SIZE)
 
-        return body
+        return input.readNBytes(length)
     }
 }

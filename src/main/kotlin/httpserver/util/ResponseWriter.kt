@@ -10,9 +10,9 @@ object ResponseWriter {
         val sb = StringBuilder()
 
         sb.append("HTTP/1.1 ")
-            .append(response.status)
+            .append(response.status.code)
             .append(' ')
-            .append(response.statusMessage)
+            .append(response.status.reason)
             .append("\r\n")
 
         response.headers.forEach { (key, value) ->
@@ -23,12 +23,11 @@ object ResponseWriter {
         sb.append("\r\n")
 
         // 3. String -> ByteArray 변환 후 한 번에 write
-        val headerBytes = sb.toString().toByteArray(Charsets.UTF_8)
-        output.write(headerBytes)
+        output.write(sb.toString().toByteArray(Charsets.US_ASCII))
 
         // 4. Body는 그대로 write
-        response.body?.let { body ->
-            output.write(body)
+        response.body?.let {
+            output.write(it)
         }
 
         output.flush()
