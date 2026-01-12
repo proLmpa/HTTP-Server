@@ -19,6 +19,6 @@ object TimeHandler {
         val json = """{"time":"$now"}"""
         val body = json.toByteArray(Charsets.UTF_8)
 
-        return HttpResponse.methodExecuted()
+        return HttpResponse.okJson(body)
     }
 }
