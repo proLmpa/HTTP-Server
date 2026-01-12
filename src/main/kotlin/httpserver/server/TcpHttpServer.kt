@@ -4,14 +4,21 @@ import httpserver.handler.ImageHandler
 import httpserver.handler.TextHandler
 import httpserver.handler.TimeHandler
 import httpserver.http.HttpMethod
+import httpserver.http.HttpResponse
 import httpserver.routing.Router
 import httpserver.storage.TextStore
 import httpserver.util.RequestParser
 import httpserver.util.ResponseWriter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.net.ServerSocket
 import java.net.Socket
 
 class TcpHttpServer(private val port: Int) {
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
     private val textStore = TextStore()
     private val textHandler = TextHandler(textStore)
 
@@ -30,19 +37,27 @@ class TcpHttpServer(private val port: Int) {
 
         while (true) {
             val socket = serverSocket.accept()
-            Thread {
+
+            scope.launch {
                 handleConnection(socket)
-            }.start()
+            }
         }
     }
 
     private fun handleConnection(socket: Socket) {
-        socket.soTimeout = 500 // 0.5 초
+        socket.soTimeout = 1000 // 1 초
 
         socket.use { client ->
-            val request = RequestParser.parse(client.getInputStream())
-            val response = router.route(request)
-            ResponseWriter.write(client.getOutputStream(), response)
+            try {
+                val request = RequestParser.parse(client.getInputStream())
+                val response = router.route(request)
+                ResponseWriter.write(client.getOutputStream(), response)
+            } catch (_: Exception) {
+                ResponseWriter.write(
+                    client.getOutputStream(),
+                    HttpResponse.internalServerError()
+                )
+            }
         }
     }
 }
