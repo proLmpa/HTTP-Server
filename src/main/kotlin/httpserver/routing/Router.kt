@@ -12,17 +12,22 @@ class Router {
     private val routes = mutableListOf<Route>()
 
     fun register(method: HttpMethod, path: String, handler: Handler) {
-        routes += Route(method, path, handler)
+        routes += Route(
+            method,
+            path.trim('/').split("/"),
+            handler
+        )
     }
 
     fun route(request: HttpRequest): HttpResponse {
         for (route in routes) {
-            if (route.matches(request))
-                return try {
-                    route.handler(request)
-                } catch (_: Exception) {
-                    internalServerError()
-                }
+            val params = route.match(request) ?: continue
+
+            return try {
+                route.handler(request.copy(pathParams = params))
+            } catch (_: Exception) {
+                internalServerError()
+            }
         }
         return notFound()
     }

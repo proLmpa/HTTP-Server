@@ -5,22 +5,22 @@ import httpserver.http.HttpRequest
 
 data class Route(
     val method: HttpMethod,
-    val pathPattern: String,
+    val segments: List<String>,
     val handler: Handler
 ) {
-    fun matches(request: HttpRequest): Boolean {
-        // 1. HTTP Method 확인
-        if (request.method != method) return false
+    fun match (request: HttpRequest): Map <String, String>? {
+        if (request.method != method) return null
 
-        //  2. Path Pattern Parts 수 확인
-        val patternParts = pathPattern.split("/")
-        val pathParts = request.path.split("/")
+        val reqSeg = request.path.trim('/').split("/")
+        if (segments.size != reqSeg.size) return null
 
-        if (patternParts.size != pathParts.size) return false
+        val params = mutableMapOf<String, String>()
 
-        // 3. Path Pattern 형식 확인
-        return patternParts.zip(pathParts).all { (p, a) ->
-            p.startsWith("{") && p.endsWith("}") || p == a
+        segments.zip(reqSeg).forEach { (p, a) ->
+            if (p.startsWith("{")) {
+                params[p.substring(1, p.length - 1)] = a
+            } else if (p != a) return null
         }
+        return params
     }
 }
