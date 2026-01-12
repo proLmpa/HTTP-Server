@@ -11,9 +11,8 @@ Connection: close\r\n
  */
 
 data class HttpResponse(
-    val status: Int,
-    val statusMessage: String,
-    val headers: MutableMap<String, String> = mutableMapOf(),
+    val status: HttpStatus,
+    val headers: MutableMap<String, String>,
     val body: ByteArray? = null
 ) {
     override fun equals(other: Any?): Boolean {
@@ -23,7 +22,6 @@ data class HttpResponse(
         other as HttpResponse
 
         if (status != other.status) return false
-        if (statusMessage != other.statusMessage) return false
         if (headers != other.headers) return false
         if (!body.contentEquals(other.body)) return false
 
@@ -31,82 +29,95 @@ data class HttpResponse(
     }
 
     override fun hashCode(): Int {
-        var result = status
-        result = 31 * result + statusMessage.hashCode()
+        var result = status.hashCode()
         result = 31 * result + headers.hashCode()
         result = 31 * result + (body?.contentHashCode() ?: 0)
         return result
     }
 
     companion object {
-        fun methodExecuted(): HttpResponse {
-            val body = "200 OK".toByteArray(Charsets.UTF_8)
 
-            return HttpResponse(
-                status = 200,
-                statusMessage = "OK",
-                headers = mutableMapOf(
-                    "content-type" to "text/plain",
-                    "content-length" to body.size.toString()
-                ),
-                body = body
-            )
+        private fun base(
+            status: HttpStatus,
+            body: ByteArray? = null,
+            headers: Map<String, String> = emptyMap()
+        ): HttpResponse {
+            val finalHeaders = mutableMapOf<String, String>()
+
+            if (body != null) {
+                finalHeaders["Content-Length"] = body.size.toString()
+            } else {
+                finalHeaders["Content-Length"] = "0"
+            }
+            finalHeaders.putAll(headers)
+
+            return HttpResponse(status, finalHeaders, body)
         }
 
-        fun created(): HttpResponse {
-            val body = "201 Created".toByteArray(Charsets.UTF_8)
-
-            return HttpResponse(
-                status = 201,
-                statusMessage = "Created",
-                headers = mutableMapOf(
-                    "content-type" to "text/plain",
-                    "content-length" to body.size.toString()
-                ),
-                body = body
+        fun okText(body: ByteArray): HttpResponse =
+            base(
+                status = HttpStatus.OK,
+                body = body,
+                headers = mapOf(
+                    "Content-Type" to "text/plain; charset=utf-8"
+                )
             )
-        }
 
-        fun methodNotAllowed(): HttpResponse {
-            val body = "405 Method Not Allowed".toByteArray(Charsets.UTF_8)
-
-            return HttpResponse(
-                status = 405,
-                statusMessage = "Method Not Allowed",
-                headers = mutableMapOf(
-                    "Content-Type" to "text/plain",
-                    "Content-Length" to body.size.toString()
-                ),
-                body = body
+        fun okJson(body: ByteArray): HttpResponse =
+            base(
+                status = HttpStatus.OK,
+                body = body,
+                headers = mapOf(
+                    "Content-Type" to "application/json; charset=utf-8"
+                )
             )
-        }
 
-        fun notFound(): HttpResponse {
-            val body = "404 Not Found".toByteArray()
-
-            return HttpResponse(
-                status = 404,
-                statusMessage = "Not Found",
-                headers = mutableMapOf(
-                    "Content-Type" to "text/plain",
-                    "Content-Length" to body.size.toString()
-                ),
-                body = body
+        fun created(location: String): HttpResponse =
+            base(
+                status = HttpStatus.CREATED,
+                body = "201 Created".toByteArray(Charsets.UTF_8),
+                headers = mapOf(
+                    "Location" to location,
+                    "Content-Type" to "text/plain; charset=utf-8"
+                )
             )
-        }
 
-        fun internalServerError(): HttpResponse {
-            val body = "500 Internal Server Error".toByteArray()
+        fun noContent(): HttpResponse = base(HttpStatus.NO_CONTENT)
 
-            return HttpResponse(
-                status = 500,
-                statusMessage = "Internal Server Error",
-                headers = mutableMapOf(
-                    "Content-Type" to "text/plain",
-                    "Content-Length" to body.size.toString()
-                ),
-                body = body
+        fun badRequest(message: String): HttpResponse =
+            base(
+                status = HttpStatus.BAD_REQUEST,
+                body = message.toByteArray(Charsets.UTF_8),
+                headers = mapOf(
+                    "Content-Type" to "text.plain; charset=utf-8"
+                )
             )
-        }
+
+        fun notFound(): HttpResponse =
+            base(
+                status = HttpStatus.NOT_FOUND,
+                body = "404 Not Found".toByteArray(Charsets.UTF_8),
+                headers = mapOf(
+                    "Content-Type" to "text/plain; charset=utf-8"
+                )
+            )
+
+        fun methodNotAllowed(): HttpResponse =
+            base(
+                status = HttpStatus.METHOD_NOT_ALLOWED,
+                body = "405 Not Allowed".toByteArray(Charsets.UTF_8),
+                headers = mapOf(
+                    "Content-Type" to "text/plain; charset=utf-8"
+                )
+            )
+
+        fun internalServerError(): HttpResponse =
+            base(
+                status = HttpStatus.INTERNAL_SERVER_ERROR,
+                body = "500 Internal Server Error".toByteArray(Charsets.UTF_8),
+                headers = mapOf(
+                    "Content-Type" to "text/plain; charset=utf-8"
+                )
+            )
     }
 }
