@@ -35,6 +35,12 @@ data class HttpResponse(
         return result
     }
 
+    fun withHeader(key: String, value: String): HttpResponse {
+        return copy(
+            headers = (headers + (key to value)) as MutableMap<String, String>
+        )
+    }
+
     companion object {
 
         private fun base(

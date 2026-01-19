@@ -4,7 +4,7 @@ import httpserver.handler.ImageHandler
 import httpserver.handler.TextHandler
 import httpserver.handler.TimeHandler
 import httpserver.http.HttpMethod
-import httpserver.http.HttpResponse
+import httpserver.http.HttpRequest
 import httpserver.routing.Router
 import httpserver.storage.TextStore
 import httpserver.util.RequestParser
@@ -15,6 +15,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
+import java.util.UUID
 
 class TcpHttpServer(private val port: Int) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -45,19 +47,49 @@ class TcpHttpServer(private val port: Int) {
     }
 
     private fun handleConnection(socket: Socket) {
-        socket.soTimeout = 1000 // 1 초
+        val connectionId = UUID.randomUUID().toString().substring(0, 8)
+
+        socket.soTimeout = 10_000 // 10 seconds
 
         socket.use { client ->
-            try {
-                val request = RequestParser.parse(client.getInputStream())
+            val input = client.getInputStream()
+            val output = client.getOutputStream()
+
+            println("[CONN $connectionId] opened")
+
+            while (true) {
+                val request = try {
+                    RequestParser.parse(input) ?: break
+                } catch (_: SocketTimeoutException) {
+                    break
+                }
                 val response = router.route(request)
-                ResponseWriter.write(client.getOutputStream(), response)
-            } catch (_: Exception) {
-                ResponseWriter.write(
-                    client.getOutputStream(),
-                    HttpResponse.internalServerError()
-                )
+                val keepAlive = shouldKeepAlive(request)
+
+                println("[CONN $connectionId] ${request.method} ${request.path}")
+
+                val finalResponse =
+                    if (keepAlive)
+                        response.withHeader("Connection", "keep-alive")
+                    else
+                        response.withHeader("Connection", "close")
+
+                ResponseWriter.write(output, finalResponse)
+
+                if (!keepAlive) break
             }
+
+            println("[CONN $connectionId] closed")
+        }
+    }
+
+    private fun shouldKeepAlive(request: HttpRequest): Boolean {
+        val connection = request.headers["connection"]?.lowercase()
+
+        return if (request.version == "HTTP/1.0") {
+            connection == "keep-alive"
+        } else {
+            connection != "close"
         }
     }
 }

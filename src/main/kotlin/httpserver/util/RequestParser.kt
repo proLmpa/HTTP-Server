@@ -10,8 +10,8 @@ object RequestParser {
     private const val MAX_HEADER_SIZE = 8 * 1024
     private const val MAX_BODY_SIZE = 1 * 1024 * 1024
 
-    fun parse(input: InputStream): HttpRequest {
-        val raw = readUntilDoubleCRLF(input)
+    fun parse(input: InputStream): HttpRequest? {
+        val raw = readUntilDoubleCRLF(input) ?: return null
         val lines = raw.split("\r\n")
 
         // 2. Request line
@@ -37,14 +37,16 @@ object RequestParser {
         )
     }
 
-    private fun readUntilDoubleCRLF(input: InputStream): String {
+    private fun readUntilDoubleCRLF(input: InputStream): String? {
         val buffer = ByteArrayOutputStream()
         var prev = 0
         var curr: Int
 
         while (true) {
             curr = input.read()
-            if (curr == -1) break
+            if (curr == -1) {
+                return if (buffer.size() == 0) null else buffer.toString(Charsets.UTF_8)
+            }
             buffer.write(curr)
 
             if (prev == '\r'.code && curr == '\n'.code) {
