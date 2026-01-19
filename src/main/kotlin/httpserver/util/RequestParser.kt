@@ -14,8 +14,10 @@ object RequestParser {
         val raw = readUntilDoubleCRLF(input)
         val lines = raw.split("\r\n")
 
+        // 2. Request line
         val (method, path, version) = parseRequestLine(lines.first())
 
+        // 3. Headers
         val headers = mutableMapOf<String, String>()
         for (i in 1 until lines.size) {
             if (lines[i].isEmpty()) break
@@ -23,6 +25,7 @@ object RequestParser {
             headers[k.lowercase()] = v
         }
 
+        // 4. Body (Content-Length 기준)
         val body = parseBody(headers, input)
 
         return HttpRequest(
@@ -81,7 +84,7 @@ object RequestParser {
     }
 
     private fun parseBody(headers: Map<String, String>, input: InputStream) : ByteArray? {
-        val length = headers["Content-Length"]?.toIntOrNull() ?: return null
+        val length = headers["content-length"]?.toIntOrNull() ?: return null
 
         require(length <= MAX_BODY_SIZE)
 

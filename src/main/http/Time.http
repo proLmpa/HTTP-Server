@@ -1,0 +1,5 @@
+### GET current time
+GET http://localhost:8080/time
+Connection: close
+
+###
