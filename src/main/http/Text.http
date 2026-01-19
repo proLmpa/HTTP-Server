@@ -1,20 +1,17 @@
 ### Create text(1)
 POST http://localhost:8080/text/hello
 Content-Type: text/plain
-Connection: close
 
 Hello, World!
 
 ### Create text(2)
 POST http://localhost:8080/text/name
 Content-Type: text/plain
-Connection: close
 
 My name is 'text'
 
 ### List all text
 GET http://localhost:8080/textall
-Connection:close
 
 ### Delete selected text
 DELETE http://localhost:8080/text/hello
