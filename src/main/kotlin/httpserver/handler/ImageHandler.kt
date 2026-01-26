@@ -28,7 +28,7 @@ object ImageHandler {
                 "Content-Type" to "image/jpeg",
                 "Content-Length" to bytes.size.toString(),
                 "Content-Disposition" to "attachment; filename=\"image.jpg\""
-            ) as MutableMap<String, String>,
+            ),
             body = bytes
         )
     }

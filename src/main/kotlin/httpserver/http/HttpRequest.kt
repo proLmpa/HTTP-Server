@@ -17,30 +17,4 @@ data class HttpRequest (
     val headers: Map<String, String>,
     val body: ByteArray?,
     val pathParams: Map<String, String> = emptyMap()
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as HttpRequest
-
-        if (method != other.method) return false
-        if (path != other.path) return false
-        if (version != other.version) return false
-        if (headers != other.headers) return false
-        if (!body.contentEquals(other.body)) return false
-        if (pathParams != other.pathParams) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = method.hashCode()
-        result = 31 * result + path.hashCode()
-        result = 31 * result + version.hashCode()
-        result = 31 * result + headers.hashCode()
-        result = 31 * result + (body?.contentHashCode() ?: 0)
-        result = 31 * result + pathParams.hashCode()
-        return result
-    }
-}
+)
