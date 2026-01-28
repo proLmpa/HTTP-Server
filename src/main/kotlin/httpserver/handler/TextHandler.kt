@@ -3,11 +3,11 @@ package httpserver.handler
 import httpserver.http.HttpMethod
 import httpserver.http.HttpRequest
 import httpserver.http.HttpResponse
-import httpserver.storage.TextStore
+import httpserver.storage.TextRepository
 import kotlin.text.toByteArray
 
 class TextHandler(
-    private val textStore: TextStore
+    private val textRepository: TextRepository
 ) {
     fun create(request: HttpRequest): HttpResponse {
         if (request.method != HttpMethod.POST) {
@@ -22,7 +22,7 @@ class TextHandler(
 
         val text = body.toString(Charsets.UTF_8)
 
-        textStore.put(textId, text)
+        textRepository.insert(textId, text)
 
         return HttpResponse.created("/text/$textId")
     }
@@ -35,7 +35,7 @@ class TextHandler(
         val textId = request.pathParams["id"]
             ?: return HttpResponse.badRequest("id path parameter is required")
 
-        val text = textStore.get(textId)
+        val text = textRepository.get(textId)
             ?: return HttpResponse.notFound()
 
         return HttpResponse.okText(
@@ -48,7 +48,7 @@ class TextHandler(
             return HttpResponse.methodNotAllowed()
         }
 
-        val messages = textStore.getAll()
+        val messages = textRepository.getAll()
 
         val json = messages.entries.joinToString(
             prefix = "{",
@@ -68,7 +68,7 @@ class TextHandler(
         val textId = request.pathParams["id"]
             ?: return HttpResponse.badRequest("id path parameter is required")
 
-        val existed = textStore.delete(textId)
+        val existed = textRepository.delete(textId)
         if (!existed) {
             return HttpResponse.notFound()
         }

@@ -5,8 +5,13 @@ import httpserver.handler.TextHandler
 import httpserver.handler.TimeHandler
 import httpserver.http.HttpMethod
 import httpserver.http.HttpRequest
+import httpserver.http.HttpResponse
 import httpserver.routing.Router
-import httpserver.storage.TextStore
+import httpserver.storage.Database
+import httpserver.storage.DbConfig
+import httpserver.storage.ImageData
+import httpserver.storage.ImageRepository
+import httpserver.storage.TextRepository
 import httpserver.util.RequestParser
 import httpserver.util.ResponseWriter
 import kotlinx.coroutines.CoroutineScope
@@ -16,13 +21,15 @@ import kotlinx.coroutines.launch
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketTimeoutException
-import java.util.UUID
 
 class TcpHttpServer(private val port: Int) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    private val textStore = TextStore()
-    private val textHandler = TextHandler(textStore)
+    private val database = Database(DbConfig.fromEnv())
+    private val textRepository = TextRepository(database)
+    private val imageRepository = ImageRepository(database)
+    private val textHandler = TextHandler(textRepository)
+    private val imageHandler = ImageHandler(imageRepository)
 
     private val router = Router().apply {
         register(HttpMethod.GET, "/time", TimeHandler::handle)
@@ -30,10 +37,13 @@ class TcpHttpServer(private val port: Int) {
         register(HttpMethod.GET, "/text/{id}", textHandler::get)
         register(HttpMethod.GET, "/textall", textHandler::getAll)
         register(HttpMethod.DELETE, "/text/{id}", textHandler::delete)
-        register(HttpMethod.GET, "/image", ImageHandler::handle)
+        register(HttpMethod.GET, "/image/{id}", imageHandler::get)
+        register(HttpMethod.PUT, "/image/{id}", imageHandler::put)
+        register(HttpMethod.DELETE, "/image/{id}", imageHandler::delete)
     }
 
     fun start() {
+        seedDefaultImage()
         val serverSocket = ServerSocket(port)
         println("Listening on $port")
 
@@ -47,39 +57,39 @@ class TcpHttpServer(private val port: Int) {
     }
 
     private fun handleConnection(socket: Socket) {
-        val connectionId = UUID.randomUUID().toString().substring(0, 8)
-
         socket.soTimeout = 10_000 // 10 seconds
 
         socket.use { client ->
             val input = client.getInputStream()
             val output = client.getOutputStream()
 
-            println("[CONN $connectionId] opened")
-
             while (true) {
-                val request = try {
-                    RequestParser.parse(input) ?: break
-                } catch (_: SocketTimeoutException) {
+                try {
+                    val request = try {
+                        RequestParser.parse(input) ?: break
+                    } catch (_: SocketTimeoutException) {
+                        break
+                    }
+                    val response = router.route(request)
+                    val keepAlive = shouldKeepAlive(request)
+
+                    val finalResponse =
+                        if (keepAlive)
+                            response.withHeader("Connection", "keep-alive")
+                        else
+                            response.withHeader("Connection", "close")
+
+                    ResponseWriter.write(output, finalResponse)
+
+                    if (!keepAlive) break
+                } catch (_: Exception) {
+                    ResponseWriter.write(
+                        output,
+                        HttpResponse.internalServerError()
+                    )
                     break
                 }
-                val response = router.route(request)
-                val keepAlive = shouldKeepAlive(request)
-
-                println("[CONN $connectionId] ${request.method} ${request.path}")
-
-                val finalResponse =
-                    if (keepAlive)
-                        response.withHeader("Connection", "keep-alive")
-                    else
-                        response.withHeader("Connection", "close")
-
-                ResponseWriter.write(output, finalResponse)
-
-                if (!keepAlive) break
             }
-
-            println("[CONN $connectionId] closed")
         }
     }
 
@@ -91,5 +101,13 @@ class TcpHttpServer(private val port: Int) {
         } else {
             connection != "close"
         }
+    }
+
+    private fun seedDefaultImage() {
+        val resource = javaClass.getResourceAsStream("/sample.jpg") ?: return
+        val imageData = resource.use { stream ->
+            ImageData(stream.readBytes(), "image/jpeg")
+        }
+        imageRepository.upsert(ImageHandler.DEFAULT_IMAGE_ID, imageData)
     }
 }

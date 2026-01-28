@@ -8,7 +8,7 @@ import java.io.InputStream
 object RequestParser {
 
     private const val MAX_HEADER_SIZE = 8 * 1024
-    private const val MAX_BODY_SIZE = 1 * 1024 * 1024
+    private const val MAX_BODY_SIZE = 5 * 1024 * 1024
 
     fun parse(input: InputStream): HttpRequest? {
         val raw = readUntilDoubleCRLF(input) ?: return null
@@ -88,8 +88,23 @@ object RequestParser {
     private fun parseBody(headers: Map<String, String>, input: InputStream) : ByteArray? {
         val length = headers["content-length"]?.toIntOrNull() ?: return null
 
-        require(length <= MAX_BODY_SIZE)
+        require(length <= MAX_BODY_SIZE) {
+            "Request body too large: $length bytes"
+        }
 
-        return input.readNBytes(length)
+        val body = ByteArray(length)
+        var offset = 0
+
+        while (offset < length) {
+            val read = input.read(body, offset, length - offset)
+            if (read == -1) {
+                throw IllegalStateException(
+                    "Unexpected end of stream: expected $length bytes, got $offset"
+                )
+            }
+            offset += read
+        }
+
+        return body
     }
 }

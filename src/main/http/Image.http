@@ -1,2 +1,26 @@
-### GET request to example server
+### Upload image (PUT)
+PUT http://localhost:8080/image/sample
+Content-Type: application/octet-stream
+
+< ../resources/sample.jpg
+
+### Upload PNG image
+PUT http://localhost:8080/image/sample
+Content-Type: application/octet-stream
+
+< ../resources/sample.png
+
+### Download image
+GET http://localhost:8080/image/sample
+
+### Delete image
+DELETE http://localhost:8080/image/sample
+
+### Missing image id
 GET http://localhost:8080/image
+
+### Upload random binary
+PUT http://localhost:8080/image/random
+Content-Type: application/octet-stream
+
+ABCDEF0123456789
